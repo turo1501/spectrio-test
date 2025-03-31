@@ -2,21 +2,23 @@ const os = require('os')
 const si = require('systeminformation')
 const axios = require('axios')
 
-
+/**
+ * Get detailed system information including hardware, OS, and location
+ * @returns {Promise<Object>} System information object
+ */
 async function getSystemInfo() {
-    try{
-        
+    try {
+        // Get display information
         const graphics = await si.graphics()
-        const numberOfMonitors = graphics.display ? graphics.displays.length : 1
+        const numberOfMonitors = graphics.displays ? graphics.displays.length : 1
 
-
-        //In Day2 i think i will use os library for get information of system but after that in day4 i find new 
-        // library to support to retrieve detailed harware system information
+        // RAM information - enhanced with percent per process
         const totalMemory = Math.round(os.totalmem()/(1024*1024))
         const freeMemory = Math.round(os.freemem()/(1024*1024))
         const usedMemory = totalMemory - freeMemory 
-        const memPercentage = Math.round((usedMemory/totalMemory)*100)
-
+        const memPercentage = Math.round((usedMemory / totalMemory) * 100)
+        
+        // Get top memory processes
         const processes = await si.processes()
         const topMemoryProcesses = processes.list
             .sort((a, b) => b.memRss - a.memRss)
@@ -27,11 +29,12 @@ async function getSystemInfo() {
                 pid: proc.pid
             }))
 
+        // CPU information - enhanced with detailed load
         const cpuInfo = os.cpus()
         const currentLoad = await si.currentLoad()
         const cpuCurrentSpeed = await si.cpu()
-
-
+        
+        // Get real-time CPU usage per core
         const coreUsage = currentLoad.cpus.map((core, index) => ({
             core: index,
             load: Math.round(core.load),
@@ -48,16 +51,17 @@ async function getSystemInfo() {
                 pid: proc.pid
             }))
 
-
+        // Network information
         const networkStats = await si.networkStats()
-        const network = networkStat[0].length > 0 ? {
-            interface : networkStats[0].iface , 
-            rx_bytes :Math.round(networkStats[0].rx_bytes/(1024*1024)),
-            tx_bytes :Math.round(networkStats[0].tx_bytes/(1024*1024)),
-            rx_sec: Math.round(networkStats[0].rx_sec/1024),
-            tx_sec: Math.round(networkStats[0].tx_sec/1024)
+        const network = networkStats.length > 0 ? {
+            interface: networkStats[0].iface,
+            rx_bytes: Math.round(networkStats[0].rx_bytes / (1024 * 1024)),
+            tx_bytes: Math.round(networkStats[0].tx_bytes / (1024 * 1024)),
+            rx_sec: Math.round(networkStats[0].rx_sec / 1024),
+            tx_sec: Math.round(networkStats[0].tx_sec / 1024)
         } : null
 
+        // Disk information
         const fsSize = await si.fsSize()
         const diskInfo = fsSize.length > 0 ? fsSize.map(disk => ({
             fs: disk.fs,
@@ -68,37 +72,37 @@ async function getSystemInfo() {
             use: Math.round(disk.use)
         })) : []
 
-
-        const cpuUsage = os.cpus()
+        // System information
         const operatingSystem = `${os.type()} ${os.release()}`
         const uptime = os.uptime()
-        const uptimeFromatted = formatUptime(uptime)
-
-
+        const uptimeFormatted = formatUptime(uptime)
+        
+        // Get MAC address and IP
         const networkInterfaces = await si.networkInterfaces()
         const macAddress = networkInterfaces.length > 0 ? networkInterfaces[0].mac : 'Unknown'
         const ipAddress = getIPAddress()
         
         // Get location based on IP address
         const locationInfo = await getLocationFromIP(ipAddress)
-
+        
         return {
-            timestamp : new Date().toISOString(),
-            monitors : numberOfMonitors ,
-            displayInfo : graphics.displays.map(display=>({
-                model : display.model , 
-                main :display.main ,
-                connect : display.connection , 
-                resolution : `${display.resolutionX}x${display.resolutionY}` ,
-                sizeInch : display.sizeInch
+            timestamp: new Date().toISOString(),
+            monitors: numberOfMonitors,
+            displayInfo: graphics.displays.map(display => ({
+                model: display.model,
+                main: display.main,
+                connection: display.connection,
+                resolution: `${display.resolutionX}x${display.resolutionY}`,
+                sizeInch: display.sizeInch
             })),
-            ram :{
-                total : totalMemory, 
-                used :usedMemory,
-                free : freeMemory,
+            ram: {
+                total: totalMemory,
+                used: usedMemory,
+                free: freeMemory,
                 usagePercentage: memPercentage,
                 topProcesses: topMemoryProcesses
-             },cpu: {
+            },
+            cpu: {
                 model: cpuCurrentSpeed.manufacturer + ' ' + cpuCurrentSpeed.brand,
                 cores: cpuCurrentSpeed.cores,
                 physicalCores: cpuCurrentSpeed.physicalCores,
@@ -108,27 +112,28 @@ async function getSystemInfo() {
                 topProcesses: topCpuProcesses
             },
             network,
-            disk : diskInfo,
+            disk: diskInfo,
             operatingSystem,
+            uptime: uptimeFormatted,
             macAddress,
-            uptime: uptimeFromatted,
-            hostname : os.hostname(),
+            hostName: os.hostname(),
             ipAddress,
             location: locationInfo
         }
-    }catch(err){
-        console.error('Error getting system information', err)
+    } catch (error) {
+        console.error('Error getting system information:', error)
         return {
-            error : ' Failed to retrieve system information',
-            message : err.message
+            error: 'Failed to retrieve system information',
+            message: error.message
         }
-
     }
-
 }
 
-
-
+/**
+ * Get location information based on IP address
+ * @param {string} ip - The IP address to look up
+ * @returns {Promise<Object>} Location information
+ */
 async function getLocationFromIP(ip) {
     try {
         // Use ipinfo.io API to get location information
