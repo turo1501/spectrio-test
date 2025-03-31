@@ -49,7 +49,6 @@ export default function Home() {
     };
   }, []);
 
-  // Format bytes to human-readable size
   const formatBytes = (bytes, decimals = 2) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -59,10 +58,8 @@ export default function Home() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   };
 
-  // RAM usage percentage for progress bar
   const ramUsagePercentage = systemInfo?.ram?.usagePercentage || 0;
   
-  // Get color for RAM usage progress bar
   const getRamUsageColor = (percentage) => {
     if (percentage < 50) return 'bg-green-500';
     if (percentage < 80) return 'bg-yellow-500';

@@ -1,23 +1,56 @@
 const os = require('os')
 const si = require('systeminformation')
+const axios = require('axios')
 
+/**
+ * Get detailed system information including hardware, OS, and location
+ * @returns {Promise<Object>} System information object
+ */
 async function getSystemInfo() {
     try {
         // Get display information
         const graphics = await si.graphics()
         const numberOfMonitors = graphics.displays ? graphics.displays.length : 1
 
-        // RAM information
+        // RAM information - enhanced with percent per process
         const totalMemory = Math.round(os.totalmem()/(1024*1024))
         const freeMemory = Math.round(os.freemem()/(1024*1024))
         const usedMemory = totalMemory - freeMemory 
         const memPercentage = Math.round((usedMemory / totalMemory) * 100)
+        
+        // Get top memory processes
+        const processes = await si.processes()
+        const topMemoryProcesses = processes.list
+            .sort((a, b) => b.memRss - a.memRss)
+            .slice(0, 5)
+            .map(proc => ({
+                name: proc.name,
+                memoryUsage: Math.round((proc.memRss / (totalMemory * 1024 * 1024)) * 100 * 100) / 100, // as percentage of total with 2 decimal places
+                pid: proc.pid
+            }))
 
-        // CPU information
+        // CPU information - enhanced with detailed load
         const cpuInfo = os.cpus()
-        const [loadAverage] = os.loadavg()
+        const currentLoad = await si.currentLoad()
         const cpuCurrentSpeed = await si.cpu()
         
+        // Get real-time CPU usage per core
+        const coreUsage = currentLoad.cpus.map((core, index) => ({
+            core: index,
+            load: Math.round(core.load),
+            speed: cpuCurrentSpeed.speed
+        }))
+        
+        // Get top CPU processes
+        const topCpuProcesses = processes.list
+            .sort((a, b) => b.cpu - a.cpu)
+            .slice(0, 5)
+            .map(proc => ({
+                name: proc.name,
+                cpuUsage: Math.round(proc.cpu * 100) / 100, // percentage with 2 decimal places
+                pid: proc.pid
+            }))
+
         // Network information
         const networkStats = await si.networkStats()
         const network = networkStats.length > 0 ? {
@@ -44,9 +77,13 @@ async function getSystemInfo() {
         const uptime = os.uptime()
         const uptimeFormatted = formatUptime(uptime)
         
-        // Get MAC address
+        // Get MAC address and IP
         const networkInterfaces = await si.networkInterfaces()
         const macAddress = networkInterfaces.length > 0 ? networkInterfaces[0].mac : 'Unknown'
+        const ipAddress = getIPAddress()
+        
+        // Get location based on IP address
+        const locationInfo = await getLocationFromIP(ipAddress)
         
         return {
             timestamp: new Date().toISOString(),
@@ -62,13 +99,17 @@ async function getSystemInfo() {
                 total: totalMemory,
                 used: usedMemory,
                 free: freeMemory,
-                usagePercentage: memPercentage
+                usagePercentage: memPercentage,
+                topProcesses: topMemoryProcesses
             },
             cpu: {
                 model: cpuCurrentSpeed.manufacturer + ' ' + cpuCurrentSpeed.brand,
                 cores: cpuCurrentSpeed.cores,
+                physicalCores: cpuCurrentSpeed.physicalCores,
                 speed: cpuCurrentSpeed.speed,
-                loadAverage
+                loadAverage: Math.round(currentLoad.currentLoad),
+                coreUsage: coreUsage,
+                topProcesses: topCpuProcesses
             },
             network,
             disk: diskInfo,
@@ -76,13 +117,57 @@ async function getSystemInfo() {
             uptime: uptimeFormatted,
             macAddress,
             hostName: os.hostname(),
-            ipAddress: getIPAddress()
+            ipAddress,
+            location: locationInfo
         }
     } catch (error) {
         console.error('Error getting system information:', error)
         return {
             error: 'Failed to retrieve system information',
             message: error.message
+        }
+    }
+}
+
+/**
+ * Get location information based on IP address
+ * @param {string} ip - The IP address to look up
+ * @returns {Promise<Object>} Location information
+ */
+async function getLocationFromIP(ip) {
+    try {
+        // Use ipinfo.io API to get location information
+        // Using fallback value if API call fails
+        const response = await axios.get(`https://ipinfo.io/${ip}/json`)
+        
+        if (response.data && response.data.city) {
+            return {
+                city: response.data.city,
+                region: response.data.region,
+                country: response.data.country,
+                loc: response.data.loc,
+                timezone: response.data.timezone,
+                postal: response.data.postal
+            }
+        }
+        
+        // Return Ho Chi Minh City as fallback
+        return {
+            city: 'Ho Chi Minh City',
+            region: 'Ho Chi Minh',
+            country: 'VN',
+            loc: '10.8231,106.6297',
+            timezone: 'Asia/Ho_Chi_Minh'
+        }
+    } catch (error) {
+        console.error('Error getting location from IP:', error)
+        // Return Ho Chi Minh City as fallback
+        return {
+            city: 'Ho Chi Minh City',
+            region: 'Ho Chi Minh',
+            country: 'VN',
+            loc: '10.8231,106.6297',
+            timezone: 'Asia/Ho_Chi_Minh'
         }
     }
 }

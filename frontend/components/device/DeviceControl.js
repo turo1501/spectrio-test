@@ -145,15 +145,7 @@ const DeviceControl = ({ deviceInfo, onRefresh }) => {
         </div>
       </div>
 
-      <div className="device-apps-section">
-        <div className="device-apps-section-header">APPS & RESOURCES</div>
-        <div className="device-apps-buttons">
-          <button className="device-apps-button">
-            <i className="device-apps-button-icon">📦</i>
-            <span className="device-apps-button-label">Install App</span>
-          </button>
-        </div>
-      </div>
+     
 
       {/* Edit Info Modal */}
       {showEditModal && (

@@ -9,7 +9,6 @@ const DevicePerformance = ({ deviceInfo }) => {
   useEffect(() => {
     if (!deviceInfo) return;
 
-    // Get CPU load data
     if (deviceInfo.cpu && typeof deviceInfo.cpu.loadAverage !== 'undefined') {
       setCpuData({
         value: deviceInfo.cpu.loadAverage,
@@ -22,11 +21,9 @@ const DevicePerformance = ({ deviceInfo }) => {
       });
     }
 
-    // Get RAM usage data
     if (deviceInfo.ram) {
       const total = deviceInfo.ram.total;
       const used = deviceInfo.ram.used;
-      // Only calculate this if total is non-zero to prevent division by zero
       if (total > 0) {
         const usagePercent = Math.round((used / total) * 100);
         

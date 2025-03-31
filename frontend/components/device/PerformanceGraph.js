@@ -8,16 +8,13 @@ const PerformanceGraph = ({ title, data, type = 'line', color = '#3fbcad' }) => 
   useEffect(() => {
     if (!data || !data.value) return;
     
-    // Add new data point with timestamp
     const newDataPoint = {
       value: data.value,
       timestamp: new Date().toLocaleTimeString()
     };
     
-    // Update max value for scaling if needed
     const newMaxValue = data.value > maxValue ? Math.ceil(data.value / 10) * 10 : maxValue;
     
-    // Update graph data (keep last 10 points)
     setGraphData(prevData => {
       const updatedData = [...prevData, newDataPoint];
       if (updatedData.length > 10) {
@@ -26,19 +23,17 @@ const PerformanceGraph = ({ title, data, type = 'line', color = '#3fbcad' }) => 
       return updatedData;
     });
     
-    // Only update maxValue if it needs to increase
     if (newMaxValue !== maxValue) {
       setMaxValue(newMaxValue);
     }
-  }, [data]); // Remove maxValue from dependencies
+  }, [data]); 
   
-  // Calculate height for a bar or point
   const calculateHeight = (value) => {
     const percentage = (value / maxValue) * 100;
-    return Math.max(1, percentage); // Minimum 1% height for visibility
+    return Math.max(1, percentage);
   };
   
-  // Get color based on value (for threshold-based colors)
+  
   const getValueColor = (value) => {
     if (!data || !data.thresholds) return color;
     
@@ -65,7 +60,6 @@ const PerformanceGraph = ({ title, data, type = 'line', color = '#3fbcad' }) => 
     );
   }
   
-  // Current value (most recent data point)
   const currentValue = graphData[graphData.length - 1].value;
   const currentValueDisplay = data.format 
     ? data.format(currentValue) 

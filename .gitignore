@@ -5,7 +5,6 @@ yarn.lock
 pnpm-lock.yaml
 
 
-
 backend/dist/
 backend/build/
 frontend/.next/
@@ -29,3 +28,9 @@ Thumbs.db
 
 coverage/
 .nyc_output/
+
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+

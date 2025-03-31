@@ -1,0 +1,41 @@
+{
+  "name": "system-monitoring-app",
+  "version": "1.0.0",
+  "description": "System monitoring app for device management",
+  "main": "index.js",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "scripts": {
+    "backend:start": "cd backend && npm start",
+    "frontend:dev": "cd frontend && npm run dev",
+    "start": "concurrently \"npm run backend:start\" \"npm run frontend:dev\"",
+    "test": "node run-tests.js",
+    "test:ui-mode": "node run-tests.js --ui-mode",
+    "test:interactive": "node run-tests.js --interactive",
+    "test:location": "node run-tests.js tests/location.spec.js",
+    "test:api": "node run-tests.js tests/api.spec.js",
+    "test:websocket": "node run-tests.js tests/websocket.spec.js",
+    "test:ui": "node run-tests.js tests/ui.spec.js",
+    "test:stability": "node run-tests.js tests/stability.spec.js",
+    "playwright:install": "npx playwright install",
+    "pretest": "npm run playwright:install",
+    "cleanup": "node cleanup.js"
+  },
+  "keywords": [
+    "system",
+    "monitoring",
+    "device",
+    "management"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "concurrently": "^8.2.0",
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.37.0",
+    "chalk": "^4.1.2"
+  }
+}

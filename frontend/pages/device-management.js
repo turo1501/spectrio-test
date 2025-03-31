@@ -66,9 +66,7 @@ export default function DeviceManagement() {
         socket.close();
       }
     };
-  }, []); // Remove webSocket from dependencies to prevent constant recreation
-
-  // Initialize WebSocket on component mount
+  }, []); 
   useEffect(() => {
     const cleanup = initWebSocket();
     
@@ -77,14 +75,11 @@ export default function DeviceManagement() {
     };
   }, [initWebSocket]);
 
-  // Handle device refresh
   const handleRefresh = useCallback(async () => {
     return new Promise((resolve, reject) => {
       try {
-        // Close and reopen the WebSocket connection
         const cleanup = initWebSocket();
         
-        // Resolve the promise after a short delay to allow new data to come in
         setTimeout(() => {
           resolve();
         }, 2000);
@@ -98,11 +93,9 @@ export default function DeviceManagement() {
 
   // Handle device reboot API endpoint
   useEffect(() => {
-    // Add API endpoint for reboot in the backend if it doesn't exist
-    // This is just a placeholder for the frontend implementation
+   
     const setupRebootEndpoint = async () => {
       try {
-        // In a real application, you would set up a proper API handler on the server
         console.log('Setting up reboot endpoint for device control');
       } catch (error) {
         console.error('Failed to set up reboot endpoint:', error);
@@ -112,10 +105,12 @@ export default function DeviceManagement() {
     setupRebootEndpoint();
   }, []);
 
+  const deviceId = systemInfo?.macAddress ? systemInfo.macAddress.toUpperCase() : 'Loading...';
+  
   return (
     <>
       <Head>
-        <title>Device Management - {systemInfo?.macAddress ? systemInfo.macAddress.toUpperCase() : 'Loading...'}</title>
+        <title>{`Device Management - ${deviceId}`}</title>
       </Head>
       <div className="device-management-page">
         <div className="device-management-header">
@@ -123,7 +118,7 @@ export default function DeviceManagement() {
             <h1 className="device-management-title">Device Management</h1>
             <span className="device-management-separator">›</span>
             <h2 className="device-management-subtitle">
-              Device - {systemInfo?.macAddress ? systemInfo.macAddress.toUpperCase() : 'Loading...'}
+              Device - {deviceId}
             </h2>
           </div>
           {connected ? (
@@ -153,16 +148,9 @@ export default function DeviceManagement() {
                 <DevicePerformance deviceInfo={systemInfo} />
               </div>
               
-              <SectionScreenshot 
-                title="Performance Screenshot" 
-                targetRef={performanceRef} 
-              />
+             
               
-              {/* Control Section */}
-              <SectionScreenshot 
-                title="Control Section Screenshot" 
-                targetRef={deviceControlRef} 
-              />
+              
               
               <div ref={deviceControlRef}>
                 <DeviceControl deviceInfo={systemInfo} onRefresh={handleRefresh} />
@@ -173,11 +161,7 @@ export default function DeviceManagement() {
                 <DeviceDetails deviceInfo={systemInfo} />
               </div>
               
-              {/* Details Section Screenshot */}
-              <SectionScreenshot 
-                title="Details Section Screenshot" 
-                targetRef={deviceDetailsRef} 
-              />
+              
             </div>
           </div>
         </div>

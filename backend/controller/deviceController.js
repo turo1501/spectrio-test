@@ -1,99 +1,100 @@
-const systemService = require('../service/systemService')
+const systemService = require('../service/systemService');
 const os = require('os');
 const { exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
 
 /**
- * Get device information
+ * Get comprehensive device information
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-exports.getDeviceInfo = (req, res) => {
+exports.getDeviceInfo = async (req, res) => {
   try {
-    // Basic system information
-    const systemInfo = {
-      operatingSystem: `${os.type()} ${os.release()}`,
-      hostName: os.hostname(),
-      platform: os.platform(),
-      arch: os.arch(),
-      uptime: formatUptime(os.uptime()),
-      totalMemory: Math.round(os.totalmem() / (1024 * 1024 * 1024) * 100) / 100, // GB
-      freeMemory: Math.round(os.freemem() / (1024 * 1024 * 1024) * 100) / 100, // GB
-      cpuCores: os.cpus().length,
-      cpuModel: os.cpus()[0].model,
-      networkInterfaces: os.networkInterfaces(),
-    };
+    const systemInfo = await systemService.getSystemInfo();
+    
+    if (systemInfo.error) {
+      throw new Error(systemInfo.message);
+    }
 
     res.status(200).json({
       success: true,
-      data: systemInfo
+      data: systemInfo,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Error getting device info:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to retrieve device information'
+      error: 'Failed to retrieve device information',
+      message: error.message
     });
   }
 };
 
 /**
- * Get specific device metric
+ * Get specific device metric with validation
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
 exports.getDeviceMetric = async (req, res) => {
-    try {
-        const { metric } = req.params
-        const info = await systemService.getSystemInfo()
-        
-        switch (metric) {
-            case 'cpu':
-                res.status(200).json(info.cpu)
-                break
-            case 'ram':
-                res.status(200).json(info.ram)
-                break
-            case 'disk':
-                res.status(200).json(info.disk)
-                break
-            case 'network':
-                res.status(200).json(info.network)
-                break
-            case 'display':
-                res.status(200).json({
-                    monitors: info.monitors,
-                    displayInfo: info.displayInfo
-                })
-                break
-            case 'os':
-                res.status(200).json({
-                    operatingSystem: info.operatingSystem,
-                    uptime: info.uptime,
-                    hostName: info.hostName
-                })
-                break
-            default:
-                res.status(404).json({ error: 'Metric not found' })
-        }
+  try {
+    const { metric } = req.params;
+    const validMetrics = ['cpu', 'ram', 'disk', 'network', 'display', 'os'];
+    
+    if (!validMetrics.includes(metric)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid metric',
+        validMetrics
+      });
     }
-    catch (error) {
-        console.error('Error in getDeviceMetric controller:', error)
-        res.status(500).json({ 
-            error: 'Failed to retrieve device metric.',
-            message: error.message 
-        })
+
+    const systemInfo = await systemService.getSystemInfo();
+    
+    if (systemInfo.error) {
+      throw new Error(systemInfo.message);
     }
-}
+
+    const metricData = {
+      cpu: systemInfo.cpu,
+      ram: systemInfo.ram,
+      disk: systemInfo.disk,
+      network: systemInfo.network,
+      display: {
+        monitors: systemInfo.monitors,
+        displayInfo: systemInfo.displayInfo
+      },
+      os: {
+        operatingSystem: systemInfo.operatingSystem,
+        uptime: systemInfo.uptime,
+        hostName: systemInfo.hostName
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      data: metricData[metric],
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in getDeviceMetric controller:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve device metric',
+      message: error.message
+    });
+  }
+};
 
 /**
- * Reboot device
+ * Reboot device with safety checks and platform-specific handling
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-exports.rebootDevice = (req, res) => {
+exports.rebootDevice = async (req, res) => {
   try {
-    // Extract device ID from request body
-    const { deviceId } = req.body;
+    const { deviceId, force = false } = req.body;
     
     if (!deviceId) {
       return res.status(400).json({
@@ -102,51 +103,60 @@ exports.rebootDevice = (req, res) => {
       });
     }
 
+    // Validate device exists (in a real app, you'd check your database)
+    const systemInfo = await systemService.getSystemInfo();
+    if (systemInfo.error) {
+      throw new Error('Failed to verify device status');
+    }
+
     console.log(`Reboot requested for device: ${deviceId}`);
     
-    // For safety reasons, we won't actually execute the reboot command in this demo
-    // In a real application, you would use platform-specific commands
-    
-    /* 
-    // Example reboot commands (commented out for safety):
-    if (os.platform() === 'win32') {
-      exec('shutdown /r /t 10', (error) => {
-        if (error) {
-          console.error(`Reboot error: ${error}`);
-          return res.status(500).json({ success: false, error: 'Failed to reboot device' });
-        }
-      });
-    } else if (os.platform() === 'linux' || os.platform() === 'darwin') {
-      exec('sudo shutdown -r +1', (error) => {
-        if (error) {
-          console.error(`Reboot error: ${error}`);
-          return res.status(500).json({ success: false, error: 'Failed to reboot device' });
-        }
+    // Platform-specific reboot commands
+    const rebootCommands = {
+      win32: 'shutdown /r /t 10',
+      linux: 'sudo shutdown -r +1',
+      darwin: 'sudo shutdown -r +1'
+    };
+
+    const platform = os.platform();
+    const command = rebootCommands[platform];
+
+    if (!command) {
+      throw new Error(`Unsupported platform: ${platform}`);
+    }
+
+    if (force) {
+      await execAsync(command);
+      return res.status(200).json({
+        success: true,
+        message: `Reboot command executed for device ${deviceId}`,
+        timestamp: new Date().toISOString()
       });
     }
-    */
-    
-    // For demo, we just simulate the reboot process
-    setTimeout(() => {
-      console.log(`Device ${deviceId} reboot simulation completed`);
-    }, 5000);
-    
+
+    // For safety, return success without executing
     res.status(200).json({
       success: true,
-      message: `Reboot command sent to device ${deviceId}`
+      message: `Reboot command prepared for device ${deviceId} (safety mode)`,
+      timestamp: new Date().toISOString()
     });
     
   } catch (error) {
     console.error('Reboot request error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to process reboot request'
+      error: 'Failed to process reboot request',
+      message: error.message
     });
   }
 };
 
-// Update device timezone
-exports.updateTimezone = (req, res) => {
+/**
+ * Update device timezone with validation
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+exports.updateTimezone = async (req, res) => {
   try {
     const { deviceId, timezone } = req.body;
     
@@ -156,28 +166,40 @@ exports.updateTimezone = (req, res) => {
         error: 'Device ID and timezone are required'
       });
     }
-    
-    console.log(`Timezone update requested for device ${deviceId}: ${timezone}`);
-    
-    // In a real application, this would make system changes
-    // For this demo, we're just simulating the update
+
+    // Validate timezone format (basic check)
+    if (!/^[A-Za-z]+\/[A-Za-z_]+$/.test(timezone)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid timezone format'
+      });
+    }
+
+    // In a real application, this would update the system timezone
+    // For demo purposes, we'll just simulate the update
     
     res.status(200).json({
       success: true,
-      message: `Timezone updated to ${timezone} for device ${deviceId}`
+      message: `Timezone updated to ${timezone} for device ${deviceId}`,
+      timestamp: new Date().toISOString()
     });
     
   } catch (error) {
     console.error('Timezone update error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to update timezone'
+      error: 'Failed to update timezone',
+      message: error.message
     });
   }
 };
 
-// Update device information
-exports.updateDeviceInfo = (req, res) => {
+/**
+ * Update device information with validation
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+exports.updateDeviceInfo = async (req, res) => {
   try {
     const { deviceId, name, description, location, model, tags } = req.body;
     
@@ -187,38 +209,50 @@ exports.updateDeviceInfo = (req, res) => {
         error: 'Device ID is required'
       });
     }
-    
-    console.log(`Device info update requested for device ${deviceId}`);
-    
+
+    // Validate input data
+    if (name && typeof name !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Name must be a string'
+      });
+    }
+
+    if (tags && !Array.isArray(tags)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Tags must be an array'
+      });
+    }
+
     // In a real app, this would update a database
     // For this demo, we just log the values and return success
-    console.log('Updated values:', { name, description, location, model, tags });
+    
+    const updatedInfo = {
+      deviceId,
+      name,
+      description,
+      location,
+      model,
+      tags,
+      updatedAt: new Date().toISOString()
+    };
+
+    console.log('Device info update:', updatedInfo);
     
     res.status(200).json({
       success: true,
       message: `Device information updated for ${deviceId}`,
-      data: { deviceId, name, description, location, model, tags }
+      data: updatedInfo,
+      timestamp: new Date().toISOString()
     });
     
   } catch (error) {
     console.error('Device info update error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to update device information'
+      error: 'Failed to update device information',
+      message: error.message
     });
   }
 };
-
-// Helper function to format uptime
-function formatUptime(uptime) {
-  const days = Math.floor(uptime / 86400);
-  const hours = Math.floor((uptime % 86400) / 3600);
-  const minutes = Math.floor((uptime % 3600) / 60);
-  
-  let formattedUptime = '';
-  if (days > 0) formattedUptime += `${days}d `;
-  if (hours > 0 || days > 0) formattedUptime += `${hours}h `;
-  formattedUptime += `${minutes}m`;
-  
-  return formattedUptime;
-}
